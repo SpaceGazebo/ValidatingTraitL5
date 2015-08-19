@@ -15,6 +15,14 @@ trait ValidatingTrait {
     protected $validationErrors;
 
     /**
+     * Warning messages as provided by the validator.
+     *
+     * @var \Illuminate\Support\MessageBag
+     */
+
+    protected $warningsMB = null;
+
+    /**
      * Whether the model should undergo validation
      * when saving or not.
      *
