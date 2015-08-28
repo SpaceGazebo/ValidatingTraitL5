@@ -19,8 +19,7 @@ trait ValidatingTrait {
      *
      * @var \Illuminate\Support\MessageBag
      */
-
-    protected $warningsMB = null;
+    protected $validationWarnings;
 
     /**
      * Whether the model should undergo validation
@@ -157,15 +156,72 @@ trait ValidatingTrait {
     {
         $this->validationAttributeNames = $attributeNames;
     }
+    
+    /**
+     * In OOP, objects are not suppose to only represent the data that they
+     * hold, they are suppose to represent the actions they could perform
+     * 
+     * each class should extend like this so that their actions can require
+     * validation. Examples would be sendEmailAgain, publish, delete, etc.
+     * 
+     *     $ruleKeys = ValidatingTrait::getValidatableStates();
+     */
+    public function getValidatableStates()
+    {
+        $ruleKeys = ['saving','save'];
+        if ($this->getModel()->getKey())
+        {
+            $ruleKeys[] = 'updating';
+            $ruleKeys[] = 'update';
+        }
+        else
+        {
+            $ruleKeys[] = 'creating';
+            $ruleKeys[] = 'create';
+        }
+        return $ruleKeys;
+    }
 
     /**
      * Get the global validation rules.
      *
      * @return array
      */
-    public function getRules()
+    public function getRules(array $ruleKeys=array(),$type='errors',$onlyRequested=false)
     {
-        return isset($this->rules) ? $this->rules : [];
+        $rules = $this->rules;
+        $outputRules = $this->rules;
+        
+        $ruleKeys = $onlyRequested ? [] : $this->getModel()->getValidatableStates();
+        
+        $ruleSets = array_map(function($ruleSet)use($rules,$type)
+        {
+            if (is_array($ruleSet))
+            {
+                return $ruleSet;
+            }
+            if (is_string($ruleSet))
+            {
+                return array_get($rules,$type.'.'.$ruleSet,[]);
+            }
+            throw new \Exception ('Cant make validation rules from '.gettype($ruleSet).', expecting string or array');
+        },$ruleKeys);
+        
+        $mergedRules = call_user_func_array('array_merge_recursive',$ruleSets);
+        
+        foreach ($mergedRules as $field => $rules)
+        {
+            if (is_array($rules))
+            {
+                $outputRules[$field] = implode("|", $rules);
+            }
+            else
+            {
+                $outputRules[$field] = $rules;
+            }
+        }
+        
+        return $outputRules;
     }
 
     /**
@@ -197,9 +253,22 @@ trait ValidatingTrait {
      */
     public function getErrors()
     {
-        return $this->validationErrors ?: new MessageBag;
-    }
+        if (!$this->validationErrors)
+        {
+            $this->validationErrors = new MessageBag;
+        }
 
+        return $this->validationErrors;
+    }
+    public function getWarnings()
+    {
+        if (!$this->validationWarnings)
+        {
+            $this->validationWarnings = new MessageBag;
+        }
+
+        return $this->validationWarnings;
+    }
     /**
      * Set the error messages.
      *
@@ -346,7 +415,7 @@ trait ValidatingTrait {
      * or not it passes and setting the error messages on the
      * model if required.
      *
-     * @param  array $rules
+     * @param  array $rules refer to validation subindexes
      * @return bool
      * @throws \Watson\Validating\ValidationException
      */
@@ -356,9 +425,45 @@ trait ValidatingTrait {
 
         $result = $validation->passes();
 
-        $this->setErrors($validation->messages());
+        $this->getErrors()->merge($validation->messages());
 
         return $result;
+    }
+    
+    /**
+     * made warnings copy
+     * 
+     */
+    protected function performWarningsValidation($rules = [])
+    {
+        $validation = $this->makeValidator($rules);
+
+        $result = $validation->passes();
+
+        $this->setWarnings($validation->messages());
+
+        return $result;
+    }
+    
+    /**
+     * 
+     * @param array $addStates if we are testing for a state change, pass the new state here
+     */
+    public function getValidationRuleKeysFromState(array $addStates = array())
+    {
+        /*
+         *  example usage
+        if (!$this->getModel()->getKey())
+        {
+            $addStates[] = 'creating';
+        }
+        else
+        {
+            $addStates[] = 'updating';
+        }
+        */
+        
+        return $addStates;
     }
 
     /**

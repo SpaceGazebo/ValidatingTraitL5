@@ -3,7 +3,18 @@
 use \Illuminate\Database\Eloquent\Model;
 use \Illuminate\Support\Facades\Event;
 use \Watson\Validating\ValidationException;
-
+/**
+ * we do not want to return the $validationResult
+ * because false would cancel the remaining observers
+ * and advanced validation error messages could get lost
+ * this is cleaner than rewriting Laravel's
+ * event-observer-priority-magic
+ * 
+ *     return false; // will still cancel the save,
+ * but please use something like
+ *     $model->getErrors()->add('is_published','Could not publish because not enough dragons!')
+ * so that the user will not be lost
+ */
 class ValidatingObserver {
 
     /**
@@ -15,7 +26,15 @@ class ValidatingObserver {
      */
     public function saving(Model $model)
     {
-        return $this->performValidation($model, 'saving');
+        $extraRules = $model->getValidatableStates();
+        if ($model->processing)
+        {
+            $extraRules[] = $model->processing;
+        }
+        
+        $model->performWarningsValidation($model->getRules($extraRules));
+        
+        $validationResult = $this->performValidation($model, $model->getRules($extraRules));
     }
 
     /**
@@ -26,7 +45,23 @@ class ValidatingObserver {
      */
     public function restoring(Model $model)
     {
-        return $this->performValidation($model, 'restoring');
+        $validationResult = $this->performValidation($model, $model->getRules('restoring','errors',/*$onlyRequested*/true));
+    }
+    
+    /**
+     * Register the validation event for deleting the model.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model $model
+     * @return boolean
+     */
+    public function deleting(Model $model)
+    {
+        // we do not want to return the $validationResult
+        // because false would cancel the remaining observers
+        // and advanced validation error messages could get lost
+        // this is cleaner than rewriting Laravel's
+        // event-observer-priority-magic
+        $validationResult = $this->performValidation($model, $model->getRules('deleting','errors',/*$onlyRequested*/true));
     }
 
     /**
