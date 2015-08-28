@@ -89,6 +89,13 @@ interface ValidatingInterface {
     public function getErrors();
 
     /**
+     * Get the validation warning messages from the model.
+     *
+     * @return \Illuminate\Support\MessageBag
+     */
+    public function getWarnings();
+
+    /**
      * Set the error messages.
      *
      * @param  \Illuminate\Support\MessageBag $validationErrors
