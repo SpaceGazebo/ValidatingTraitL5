@@ -32,9 +32,29 @@ class ValidatingObserver {
             $extraRules[] = $model->processing;
         }
         
-        $model->performWarningsValidation($model->getRules($extraRules));
-        
-        $validationResult = $this->performValidation($model, $model->getRules($extraRules));
+        // If the model has validating enabled, perform it.
+        if ($model->getValidating())
+        {
+            // Fire the namespaced validating event and prevent validation
+            // if it returns a value.
+            if ($this->fireValidatingEvent($model, $event) !== null) return;
+
+            $validationResult = $model->performValidation($model->getRules($extraRules,'errors',/*$onlyRequested*/false));
+            $validationWarningsResult = $model->performWarningsValidation($model->getRules($extraRules,'warnings',/*$onlyRequested*/false));
+            if ($validationResult === false)
+            {
+                // Fire the validating failed event.
+                $this->fireValidatedEvent($model, 'failed');
+
+                return;
+            }
+            // Fire the validating.passed event.
+            $this->fireValidatedEvent($model, 'passed');
+        }
+        else
+        {
+            $this->fireValidatedEvent($model, 'skipped');
+        }
     }
 
     /**
@@ -45,7 +65,28 @@ class ValidatingObserver {
      */
     public function restoring(Model $model)
     {
-        $validationResult = $this->performValidation($model, $model->getRules('restoring','errors',/*$onlyRequested*/true));
+        // If the model has validating enabled, perform it.
+        if ($model->getValidating())
+        {
+            // Fire the namespaced validating event and prevent validation
+            // if it returns a value.
+            if ($this->fireValidatingEvent($model, $event) !== null) return;
+
+            $validationResult = $model->performValidation($model, $model->getRules('restoring','errors',/*$onlyRequested*/true));
+            if ($validationResult === false)
+            {
+                // Fire the validating failed event.
+                $this->fireValidatedEvent($model, 'failed');
+
+                return;
+            }
+            // Fire the validating.passed event.
+            $this->fireValidatedEvent($model, 'passed');
+        }
+        else
+        {
+            $this->fireValidatedEvent($model, 'skipped');
+        }
     }
     
     /**
@@ -56,23 +97,6 @@ class ValidatingObserver {
      */
     public function deleting(Model $model)
     {
-        // we do not want to return the $validationResult
-        // because false would cancel the remaining observers
-        // and advanced validation error messages could get lost
-        // this is cleaner than rewriting Laravel's
-        // event-observer-priority-magic
-        $validationResult = $this->performValidation($model, $model->getRules('deleting','errors',/*$onlyRequested*/true));
-    }
-
-    /**
-     * Perform validation with the specified ruleset.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model $model
-     * @param  string $event
-     * @return boolean
-     */
-    protected function performValidation(Model $model, $event)
-    {
         // If the model has validating enabled, perform it.
         if ($model->getValidating())
         {
@@ -80,17 +104,13 @@ class ValidatingObserver {
             // if it returns a value.
             if ($this->fireValidatingEvent($model, $event) !== null) return;
 
-            if ($model->isValid() === false)
+            $validationResult = $model->performValidation($model, $model->getRules('deleting','errors',/*$onlyRequested*/true));
+            if ($validationResult === false)
             {
                 // Fire the validating failed event.
                 $this->fireValidatedEvent($model, 'failed');
 
-                if ($model->getThrowValidationExceptions())
-                {
-                    $model->throwValidationException();
-                }
-
-                return false;
+                return;
             }
             // Fire the validating.passed event.
             $this->fireValidatedEvent($model, 'passed');

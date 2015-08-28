@@ -419,7 +419,7 @@ trait ValidatingTrait {
      * @return bool
      * @throws \Watson\Validating\ValidationException
      */
-    protected function performValidation($rules = [])
+    public function performValidation($rules = [])
     {
         $validation = $this->makeValidator($rules);
 
@@ -434,7 +434,7 @@ trait ValidatingTrait {
      * made warnings copy
      * 
      */
-    protected function performWarningsValidation($rules = [])
+    public function performWarningsValidation($rules = [])
     {
         $validation = $this->makeValidator($rules);
 
