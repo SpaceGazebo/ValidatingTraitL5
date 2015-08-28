@@ -190,7 +190,7 @@ trait ValidatingTrait {
     public function getRules(array $ruleKeys=array(),$type='errors',$onlyRequested=false)
     {
         $rules = $this->rules;
-        $outputRules = $this->rules;
+        $outputRules = [];
         
         $ruleKeys = $onlyRequested ? [] : $this->getModel()->getValidatableStates();
         
@@ -278,6 +278,16 @@ trait ValidatingTrait {
     public function setErrors(MessageBag $validationErrors)
     {
         $this->validationErrors = $validationErrors;
+    }
+    /**
+     * Set the warning messages.
+     *
+     * @param  \Illuminate\Support\MessageBag $validationErrors
+     * @return void
+     */
+    public function setWarnings(MessageBag $validationWarnings)
+    {
+        $this->validationWarnings = $validationWarnings;
     }
 
     /**

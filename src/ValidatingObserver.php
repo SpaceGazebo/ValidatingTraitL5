@@ -26,10 +26,12 @@ class ValidatingObserver {
      */
     public function saving(Model $model)
     {
+        $event = __FUNCTION__;
         $extraRules = $model->getValidatableStates();
         if ($model->processing)
         {
             $extraRules[] = $model->processing;
+            $event = $model->processing;
         }
         
         // If the model has validating enabled, perform it.
@@ -65,6 +67,7 @@ class ValidatingObserver {
      */
     public function restoring(Model $model)
     {
+        $event = __FUNCTION__;
         // If the model has validating enabled, perform it.
         if ($model->getValidating())
         {
@@ -97,6 +100,7 @@ class ValidatingObserver {
      */
     public function deleting(Model $model)
     {
+        $event = __FUNCTION__;
         // If the model has validating enabled, perform it.
         if ($model->getValidating())
         {
