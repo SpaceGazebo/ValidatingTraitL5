@@ -434,8 +434,15 @@ trait ValidatingTrait {
         $validation = $this->makeValidator($rules);
 
         $result = $validation->passes();
-
-        $this->getErrors()->merge($validation->messages());
+        
+        foreach($validation->messages()->getMessages() as $key => $arr)
+        {
+            foreach($arr as $index => $value)
+            {
+                // merge does not perform unique check
+                $this->getErrors()->add($key,$value);
+            }
+        }
 
         return $result;
     }
@@ -450,7 +457,14 @@ trait ValidatingTrait {
 
         $result = $validation->passes();
 
-        $this->setWarnings($validation->messages());
+        foreach($validation->messages()->getMessages() as $key => $arr)
+        {
+            foreach($arr as $index => $value)
+            {
+                // merge does not perform unique check
+                $this->getWarnings()->add($key,$value);
+            }
+        }
 
         return $result;
     }
