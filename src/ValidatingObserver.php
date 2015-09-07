@@ -108,7 +108,7 @@ class ValidatingObserver {
             // if it returns a value.
             if ($this->fireValidatingEvent($model, $event) !== null) return;
 
-            $validationResult = $model->performValidation($model, $model->getRules('deleting','errors',/*$onlyRequested*/true));
+            $validationResult = $model->performValidation($model->getRules(['deleting'],'errors',/*$onlyRequested*/true));
             if ($validationResult === false)
             {
                 // Fire the validating failed event.
