@@ -559,7 +559,7 @@ trait ValidatingTrait {
      */
     protected function prepareUniqueRule($rule, $field)
     {
-        $parameters = array_filter(explode(',', substr($rule, 7)));
+        $parameters = array_filter(explode(',', substr(trim($rule), 7)));
 
         // If the table name isn't set, get it.
         if ( ! isset($parameters[0]))
