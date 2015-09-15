@@ -209,15 +209,20 @@ trait ValidatingTrait {
         
         $mergedRules = call_user_func_array('array_merge_recursive',$ruleSets);
         
-        foreach ($mergedRules as $field => $rules)
+        if (count($ruleSets) > 0)
         {
-            if (is_array($rules))
+            $mergedRules = call_user_func_array('array_merge_recursive',$ruleSets);
+            
+            foreach ($mergedRules as $field => $rules)
             {
-                $outputRules[$field] = implode("|", $rules);
-            }
-            else
-            {
-                $outputRules[$field] = $rules;
+                if (is_array($rules))
+                {
+                    $outputRules[$field] = implode("|", $rules);
+                }
+                else
+                {
+                    $outputRules[$field] = $rules;
+                }
             }
         }
         
