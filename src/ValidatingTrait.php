@@ -206,9 +206,7 @@ trait ValidatingTrait {
             }
             throw new \Exception ('Cant make validation rules from '.gettype($ruleSet).', expecting string or array');
         },$ruleKeys);
-        
-        $mergedRules = call_user_func_array('array_merge_recursive',$ruleSets);
-        
+
         if (count($ruleSets) > 0)
         {
             $mergedRules = call_user_func_array('array_merge_recursive',$ruleSets);
