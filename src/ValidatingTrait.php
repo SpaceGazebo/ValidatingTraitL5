@@ -356,12 +356,25 @@ trait ValidatingTrait {
      * @return void
      * @throws \Watson\Validating\ValidatingException
      */
-    public function saveOrFail()
+    public function saveOrFail(array $options = [])
     {
-        if ( ! $this->getModel()->save())
+        if ($this->isInvalid())
         {
             $this->throwValidationException();
         }
+        return $this->getModel()->parentSaveOrFail($options);
+    }
+
+    /**
+     * Call the parent save or fail method provided by Eloquent.
+     *
+     * @param  array  $options
+     * @return bool
+     * @throws \Throwable
+     */
+    public function parentSaveOrFail(array $options = [])
+    {
+        return parent::saveOrFail($options);
     }
 
     /**
