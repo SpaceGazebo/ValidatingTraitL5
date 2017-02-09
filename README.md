@@ -1,36 +1,39 @@
 Validating, a validation trait for Laravel
 ==========================================
 
-[![Build Status](https://img.shields.io/travis/dwightwatson/validating/master.svg)](https://travis-ci.org/dwightwatson/validating)
+[![Build Status](https://travis-ci.org/dwightwatson/validating.svg?branch=master)](https://travis-ci.org/dwightwatson/validating)
 [![Dependency Status](https://www.versioneye.com/php/watson:validating/1.0.0/badge.svg)](https://www.versioneye.com/php/watson:validating/1.0.0)
 [![Total Downloads](https://poser.pugx.org/watson/validating/downloads.svg)](https://packagist.org/packages/watson/validating)
 [![Latest Stable Version](https://poser.pugx.org/watson/validating/v/stable.svg)](https://packagist.org/packages/watson/validating)
 [![Latest Unstable Version](https://poser.pugx.org/watson/validating/v/unstable.svg)](https://packagist.org/packages/watson/validating)
 [![License](https://poser.pugx.org/watson/validating/license.svg)](https://packagist.org/packages/watson/validating)
 
-Validating is a trait for Laravel 5.0+ Eloquent models which ensures that models meet their validation criteria before being saved. If they are not considered valid the model will not be saved and the validation errors will be made available.
+Validating is a trait for Laravel Eloquent models which ensures that models meet their validation criteria before being saved. If they are not considered valid the model will not be saved and the validation errors will be made available.
 
 Validating allows for multiple rulesets, injecting the model ID into `unique` validation rules and raising exceptions on failed validations. It's small and flexible to fit right into your workflow and help you save valid data only.
 
 ## Laravel 4.2+
-Looking to use Validating on Laravel 4.2+? [Take a look at the 4.2 branch for documentation and installation instructions](https://github.com/dwightwatson/validating/tree/0.10). 
+Looking to use Validating on Laravel 4.2+? [Take a look at the 0.10.x branch for documentation and installation instructions](https://github.com/dwightwatson/validating/tree/0.10.x).
 
 The Laravel 4.2 version is better suited to doing form validation; it supports custom validation messages, confirmation rules and multiple rulesets. Because Laravel 5.0 has `FormRequest` validation Validating is now designed to keep your core data valid and leave form validation to the framework.
 
+## Laravel 5.0 - 5.2
+Looking to use Validating on Laravel 5.0 to 5.2? [Take a look at the 2.x branch for documentation and installation instructions](https://github.com/dwightwatson/validating/tree/2.x).
+
+The Laravel 5.0 - 5.2 version used a since-deprecated `ValidationException` contract from the Laravel framework. For Laravel 5.3 we now extend the core validation `ValidationException` which means the framework will automatically redirect back with errors when a validation error occurs, much like a `FormRequest` would.
+
+## Laravel 5.3
+Just read on - these instructions are for you!
+
 # Installation
-Simply add the package to your `composer.json` file and run `composer update`.
-
-```
-"watson/validating": "~1.0"
-```
-
-Or go to your project directory where the `composer.json` file is located and type:
+Simply go to your project directory where the `composer.json` file is located and type:
 
 ```sh
-composer require "watson/validating"
+composer require watson/validating
 ```
 
-[View installation instructions for Laravel 4.2+](https://github.com/dwightwatson/validating/tree/0.10).
+[View installation instructions for Laravel 4.2+](https://github.com/dwightwatson/validating/tree/0.10.x).
+[View installation instructions for Laravel 5.0 - 5.2](https://github.com/dwightwatson/validating/tree/2.x).
 
 ## Overview
 First, add the trait to your model and add your validation rules and messages as needed.
@@ -52,6 +55,8 @@ class Post extends Eloquent
 
 You can also add the trait to a `BaseModel` if you're using one and it will work on all models that extend from it, otherwise you can just extend `Watson\Validating\ValidatingModel` instead of `Eloquent`.
 
+*Note: you will need to set the `$rules` property on any models that extend from a `BaseModel` that uses the trait, or otherwise set an empty array as the `$rules` for the `BaseModel`. If you do not, you will inevitably end up with `LogicException with message 'Relationship method must return an object of type Illuminate\Database\Eloquent\Relations\Relation'`.*
+
 Now, you have access to some plesant functionality.
 
 ```php
@@ -61,7 +66,7 @@ $post->isValid(); // true
 // Or check if it is invalid or not.
 $post->isInvalid(); // false
 
-// Once you've determined the validity of the model, 
+// Once you've determined the validity of the model,
 // you can get the errors.
 $post->getErrors(); // errors MessageBag
 ```
@@ -69,31 +74,33 @@ $post->getErrors(); // errors MessageBag
 Model validation also becomes really simple.
 
 ```php
-if ( ! $post->save())
-{
+if ( ! $post->save()) {
     // Oops.
-    return Redirect::route('posts.create')
+    return redirect()->route('posts.create')
         ->withErrors($post->getErrors())
         ->withInput();
 }
 
-return Redirect::route('posts.show', $post->id)
+return redirect()->route('posts.show', $post->id)
     ->withSuccess("Your post was saved successfully.");
 ```
 
 Otherwise, if you prefer to use exceptions when validating models you can use the `saveOrFail()` method. Now, an exception will be raised when you attempt to save an invalid model.
 
 ```php
-try
-{
+$post->saveOrFail();
+```
+
+You *don't need to catch the exception*, if you don't want to. Laravel knows how to handle a `ValidationException` and will automatically redirect back with form input and errors. If you want to handle it yourself though you may.
+
+```php
+try {
     $post->saveOrFail();
 
-}
-catch (Watson\Validating\ValidationException $e)
-{
+} catch (Watson\Validating\ValidationException $e) {
     $errors = $e->getErrors();
 
-    return Redirect::route('posts.create')
+    return redirect()->route('posts.create')
         ->withErrors($errors)
         ->withInput();
 }
@@ -153,10 +160,35 @@ You can adjust this functionality by setting the `$injectUniqueIdentifier` prope
 protected $injectUniqueIdentifier = true;
 ```
 
+Out of the box, we support the Laravel provided `unique` rule. We also support the popular [felixkiss/uniquewith-validator](https://github.com/felixkiss/uniquewith-validator) rule, but you'll need to opt-in. Just add `use \Watson\Validating\Injectors\UniqueWithInjector` after you've imported the validating trait.
+
+It's easy to support additional injection rules too, if you like. Say you wanted to support an additional rule you've got called `unique_ids` which simply takes the model's primary key (for whatever reason). You just need to add a camel-cased rule which accepts any existing parameters and the field name, and returns the replacement rule.
+
+```php
+/**
+ * Prepare a unique_ids rule, adding a model identifier if required.
+ *
+ * @param  array  $parameters
+ * @param  string $field
+ * @return string
+ */
+protected function prepareUniqueIdsRule($parameters, $field)
+{
+    // Only perform a replacement if the model has been persisted.
+    if ($this->exists) {
+        return 'unique_ids:' . $this->getKey();
+    }
+
+    return 'unique_ids';
+}
+```
+
+In this case if the model has been saved and has a primary key of `10`, the rule `unique_ids` will be replaced with `unique_ids:10`.
+
 ### Events
 Various events are fired by the trait during the validation process which you can hook into to impact the validation process.
 
-To hook in, you first need to add the `$observeables` property onto your model (or base model). This simply lets Eloquent know that your model can response to these events.
+To hook in, you first need to add the `$observeables` property onto your model (or base model). This simply lets Eloquent know that your model can respond to these events.
 
 ```php
 /**
@@ -170,14 +202,11 @@ protected $observables = ['validating', 'validated'];
 When validation is about to occur, the `eloquent.validating: ModelName` event will be fired, where the `$event` parameter will be `saving` or `restoring`. For example, if you were updating a namespaced model `App\User` the event would be `eloquent.validating: App\User`. If you listen for any of these events and return a value you can prevent validation from occurring completely.
 
 ```php
-Event::listen('eloquent.validating.*', function($model, $event)
-{
+Event::listen('eloquent.validating:*', function($model, $event) {
     // Pseudo-Russian roulette validation.
-    if (rand(1, 6) === 1)
-    {
+    if (rand(1, 6) === 1) {
         return false;
     }
-}
 });
 ```
 
@@ -216,18 +245,20 @@ class PostsController extends Controller
         $post = $this->post->create($request->input());
 
         // Post was saved successfully.
-        return Redirect::route('posts.show', $post);
+        return redirect()->route('posts.show', $post);
     }
 }
 ```
 
-You can then catch a model validation exception globally and deal with it as you need.
+You can then catch a model validation exception in your `app/Exceptions/Handler.php` and deal with it as you need.
 
 ```php
-App::error(function(Watson\Validating\ValidationException $e)
+public function render($request, Exception $e)
 {
-    return Redirect::back()
-        ->withErrors($e)
-        ->withInput();
-});
+    if ($e instanceof \Watson\Validating\ValidationException) {
+        return back()->withErrors($e)->withInput();
+    }
+
+    parent::render($request, $e);
+}
 ```

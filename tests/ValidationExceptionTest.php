@@ -1,51 +1,52 @@
 <?php
 
-use \Watson\Validating\ValidationException;
+use Watson\Validating\ValidationException;
 
-class ValidationExceptionTest extends \PHPUnit_Framework_TestCase {
+class ValidationExceptionTest extends PHPUnit_Framework_TestCase
+{
+    public $validator;
+
+    public $model;
+
     public $exception;
 
     public function setUp()
     {
-        $this->exception = new ValidationException;
+        $this->validator = Mockery::mock('Illuminate\Contracts\Validation\Validator');
+
+        $this->model = Mockery::mock('Illuminate\Database\Eloquent\Model');
+
+        $this->exception = new ValidationException(
+            $this->validator,
+            $this->model
+        );
     }
 
-    public function testGetsErrors()
+    public function testModel()
     {
-        $this->assertNull($this->exception->getErrors());
+        $this->assertEquals($this->model, $this->exception->model());
+    }
+
+    public function testGetModel()
+    {
+        $this->assertEquals($this->model, $this->exception->getModel());
+    }
+
+    public function testGetErrors()
+    {
+       $this->validator->shouldReceive('errors')
+           ->once()
+           ->andReturn('errors');
+
+       $this->assertEquals('errors', $this->exception->getErrors());
     }
 
     public function testGetsMessageBag()
     {
-        $messageBagMock = Mockery::mock('Illuminate\Support\MessageBag');
+        $this->validator->shouldReceive('errors')
+            ->once()
+            ->andReturn('errors');
 
-        $this->exception->setErrors($messageBagMock);
-
-        $this->assertEquals($messageBagMock, $this->exception->getMessageBag());
+        $this->assertEquals('errors', $this->exception->getMessageBag());
     }
-
-    public function testSetsErrors()
-    {
-        $messageBagMock = Mockery::mock('Illuminate\Support\MessageBag');
-
-        $this->exception->setErrors($messageBagMock);
-
-        $this->assertEquals($messageBagMock, $this->exception->getErrors());
-    }
-
-
-    public function testGetsModel()
-    {
-        $this->assertNull($this->exception->getModel());
-    }
-
-    public function testSetsModel()
-    {
-        $modelMock = Mockery::mock('Illuminate\Database\Eloquent\Model');
-
-        $this->exception->setModel($modelMock);
-
-        $this->assertEquals($modelMock, $this->exception->getModel());
-    }
-
 }

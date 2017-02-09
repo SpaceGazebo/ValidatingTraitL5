@@ -1,8 +1,11 @@
-<?php namespace Watson\Validating;
+<?php
 
-use \Illuminate\Database\Eloquent\Model;
-use \Illuminate\Support\Facades\Event;
-use \Watson\Validating\ValidationException;
+namespace Watson\Validating;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Event;
+use Watson\Validating\ValidationException;
+
 /**
  * we do not want to return the $validationResult
  * because false would cancel the remaining observers
@@ -15,7 +18,8 @@ use \Watson\Validating\ValidationException;
  *     $model->getErrors()->add('is_published','Could not publish because not enough dragons!')
  * so that the user will not be lost
  */
-class ValidatingObserver {
+class ValidatingObserver
+{
 
     /**
      * Register the validation event for saving the model. Saving validation
@@ -102,15 +106,15 @@ class ValidatingObserver {
     {
         $event = __FUNCTION__;
         // If the model has validating enabled, perform it.
-        if ($model->getValidating())
-        {
+        if ($model->getValidating()) {
             // Fire the namespaced validating event and prevent validation
             // if it returns a value.
-            if ($this->fireValidatingEvent($model, $event) !== null) return;
+            if ($this->fireValidatingEvent($model, $event) !== null) {
+                return;
+            }
 
             $validationResult = $model->performValidation($model->getRules(['deleting'],'errors',/*$onlyRequested*/true));
-            if ($validationResult === false)
-            {
+            if ($validationResult === false) {
                 // Fire the validating failed event.
                 $this->fireValidatedEvent($model, 'failed');
 
@@ -118,9 +122,7 @@ class ValidatingObserver {
             }
             // Fire the validating.passed event.
             $this->fireValidatedEvent($model, 'passed');
-        }
-        else
-        {
+        } else {
             $this->fireValidatedEvent($model, 'skipped');
         }
     }

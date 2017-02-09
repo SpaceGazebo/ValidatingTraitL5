@@ -1,76 +1,92 @@
-<?php namespace Watson\Validating;
+<?php
 
-use \RuntimeException;
-use \Illuminate\Contracts\Support\MessageProvider;
-use \Illuminate\Support\MessageBag;
-use \Illuminate\Database\Eloquent\Model;
+namespace Watson\Validating;
 
-class ValidationException extends RuntimeException implements MessageProvider {
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Contracts\Support\MessageProvider;
+use Illuminate\Validation\ValidationException as BaseValidationException;
 
+class ValidationException extends BaseValidationException implements MessageProvider
+{
     /**
-     * The model.
+     * The model with validation errors.
      *
      * @var \Illuminate\Database\Eloquent\Model
      */
     protected $model;
 
     /**
-     * The validation errors.
+     * Create a new validation exception instance.
      *
-     * @var \Illuminate\Support\MessageBag
-     */
-    protected $errors;
-
-    /**
-     * Get the validation errors.
-     *
-     * @return \Illuminate\Support\MessageBag
-     */
-    public function getErrors()
-    {
-        return $this->errors;
-    }
-
-    /**
-     * Get the messages for the instance.
-     *
-     * @return \Illuminate\Support\MessageBag
-     */
-    public function getMessageBag()
-    {
-        return $this->getErrors();
-    }
-
-    /**
-     * Set the validation errors.
-     *
-     * @param  \Illuminate\Support\MessageBag $errors
+     * @param  \Illuminate\Contracts\Validation\Validator  $validator
+     * @param  \Illuminate\Database\Eloquent\Model         $model
      * @return void
      */
-    public function setErrors(MessageBag $errors)
+    public function __construct(Validator $validator, Model $model)
     {
-        $this->errors = $errors;
+        parent::__construct($validator);
+
+        $this->model = $model;
     }
 
     /**
-     * Get the model.
+     * Get the mdoel with validation errors.
      *
      * @return \Illuminate\Database\Eloquent\Model
      */
-    public function getModel()
+    public function model()
     {
         return $this->model;
     }
 
     /**
-     * Set the model.
+     * Get the mdoel with validation errors.
      *
-     * @param  \Illuminate\Database\Eloquent\Model $model
-     * @return void
+     * @return \Illuminate\Database\Eloquent\Model
      */
-    public function setModel($model)
+    public function getModel()
     {
-        $this->model = $model;
+        return $this->model();
     }
 
+    /**
+     * Get the validation errors.
+     *
+     * @return \Illuminate\Contracts\Support\Messagebag
+     */
+    public function errors()
+    {
+        return $this->validator->errors();
+    }
+
+    /**
+     * Get the validation errors.
+     *
+     * @return \Illuminate\Contracts\Support\MessageBag
+     */
+    public function getErrors()
+    {
+        return $this->errors();
+    }
+
+    /**
+     * Get the messages for the instance.
+     *
+     * @return \Illuminate\Contracts\Support\MessageBag
+     */
+    public function getMessageBag()
+    {
+        return $this->errors();
+    }
+
+    /**
+     * Get the validation error message provider.
+     *
+     * @return \Illuminate\Contracts\Support\MessageProvider
+     */
+    public function getMessageProvider()
+    {
+        return $this->provider;
+    }
 }

@@ -1,9 +1,11 @@
 <?php
 
-use \Illuminate\Support\Facades\Input;
-use \Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Input;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Database\Eloquent\Model;
 
-class ValidatingTraitTest extends \PHPUnit_Framework_TestCase {
+class ValidatingTraitTest extends PHPUnit_Framework_TestCase
+{
     public $trait;
 
     public function setUp()
@@ -81,7 +83,16 @@ class ValidatingTraitTest extends \PHPUnit_Framework_TestCase {
 
     public function testGetRules()
     {
-        $this->assertEquals(['foo' => 'bar'], $this->trait->getRules());
+        $this->assertEquals(['foo' => 'bar', 'def' => 'array'], $this->trait->getRules());
+    }
+
+    public function testRules()
+    {
+        $this->trait->shouldReceive('getRules')->once()->andReturn('foo');
+
+        $result = $this->trait->rules();
+
+        $this->assertEquals('foo', $result);
     }
 
     public function testSetRules()
@@ -89,6 +100,19 @@ class ValidatingTraitTest extends \PHPUnit_Framework_TestCase {
         $this->trait->setRules(['bar' => 'foo']);
 
         $this->assertEquals(['bar' => 'foo'], $this->trait->getRules());
+    }
+
+
+    public function testAttributesAreMutated()
+    {
+        $expected = [
+            'abc'        => '123',
+            'def'        => ['456'],
+            'bar'        => 'rab',
+            'created_at' => '2015-01-01 00:00:00'
+        ];
+
+        $this->assertEquals($expected, $this->trait->getModelAttributes());
     }
 
 
@@ -112,8 +136,8 @@ class ValidatingTraitTest extends \PHPUnit_Framework_TestCase {
         Validator::shouldReceive('make')
             ->once()
             ->andReturn(Mockery::mock([
-              'passes' => true,
-              'messages' => Mockery::mock('Illuminate\Support\MessageBag')
+                'passes' => true,
+                'messages' => Mockery::mock('Illuminate\Support\MessageBag')
             ]));
 
         $result = $this->trait->isValid();
@@ -140,21 +164,43 @@ class ValidatingTraitTest extends \PHPUnit_Framework_TestCase {
 
     public function testIsValidClearsErrors()
     {
-      $this->trait->setErrors(Mockery::mock('Illuminate\Support\MessageBag'));
+        $this->trait->setErrors(Mockery::mock('Illuminate\Support\MessageBag'));
 
-      $validMessageBag = Mockery::mock('Illuminate\Support\MessageBag');
+        $validMessageBag = Mockery::mock('Illuminate\Support\MessageBag');
 
-      Validator::shouldReceive('make')
-        ->once()
-        ->andReturn(Mockery::mock([
-          'passes'   => true,
-          'messages' => $validMessageBag
-        ]));
+        Validator::shouldReceive('make')
+            ->once()
+            ->andReturn(Mockery::mock([
+                'passes'   => true,
+                'messages' => $validMessageBag
+            ]));
 
-      $result = $this->trait->isValid();
+        $result = $this->trait->isValid();
 
-      $this->assertTrue($result);
-      $this->assertSame($validMessageBag, $this->trait->getErrors());
+        $this->assertTrue($result);
+        $this->assertSame($validMessageBag, $this->trait->getErrors());
+    }
+
+    public function testIsValidOrFailThrowsException()
+    {
+        $this->setExpectedException('Watson\Validating\ValidationException');
+
+        Validator::shouldReceive('make')->once()->andReturn(
+            Mockery::mock('Illuminate\Contracts\Validation\Validator')
+        );
+
+        $this->trait->shouldReceive('isValid')->once()->andReturn(false);
+
+        $this->trait->isValidOrFail();
+    }
+
+    public function testIsValidOrFailReturnsTrue()
+    {
+        $this->trait->shouldReceive('isValid')->once()->andReturn(true);
+
+        $result = $this->trait->isValidOrFail();
+
+        $this->assertTrue($result);
     }
 
     public function testIsInvalidReturnsFalseIfIsValidIsTrue()
@@ -168,11 +214,11 @@ class ValidatingTraitTest extends \PHPUnit_Framework_TestCase {
 
     public function testIsInvalidReturnsTrueIfIsValidIsFalse()
     {
-      $this->trait->shouldReceive('isValid')->once()->andReturn(false);
+        $this->trait->shouldReceive('isValid')->once()->andReturn(false);
 
-      $result = $this->trait->isInvalid();
+        $result = $this->trait->isInvalid();
 
-      $this->assertTrue($result);
+        $this->assertTrue($result);
     }
 
     public function testForceSaveSavesOnInvalidModel()
@@ -188,9 +234,49 @@ class ValidatingTraitTest extends \PHPUnit_Framework_TestCase {
         $this->assertTrue($result);
     }
 
-    // saveOrFail
 
-    // saveOrReturn
+    public function testSaveOrFailThrowsExceptionOnInvalidModel()
+    {
+        $this->setExpectedException('Watson\Validating\ValidationException');
+
+        Validator::shouldReceive('make')->once()->andReturn(
+            Mockery::mock('Illuminate\Contracts\Validation\Validator')
+        );
+
+        $this->trait->shouldReceive('isInvalid')->once()->andReturn(true);
+
+        $result = $this->trait->saveOrFail();
+
+        $this->assertNull($result);
+    }
+
+    public function testSaveOrFailReturnsTrueOnValidModel()
+    {
+        $this->trait->shouldReceive('isInvalid')->once()->andReturn(false);
+
+        $this->trait->shouldReceive('getModel->parentSaveOrFail')->once()->with(['foo' => 'bar'])->andReturn(true);
+
+        $result = $this->trait->saveOrFail(['foo' => 'bar']);
+
+        $this->assertTrue($result);
+    }
+
+    public function testParentSaveOrFailCallsParentSaveOrFail()
+    {
+        $result = $this->trait->parentSaveOrFail(['foo' => 'bar']);
+
+        $this->assertEquals(['foo' => 'bar'], $result);
+    }
+
+
+    public function testSaveOrReturn()
+    {
+        $this->trait->shouldReceive('save')->once()->andReturn('foo');
+
+        $result = $this->trait->saveOrReturn();
+
+        $this->assertEquals('foo', $result);
+    }
 
     public function testPerformValidationReturnsFalseOnInvalidModel()
     {
@@ -239,55 +325,79 @@ class ValidatingTraitTest extends \PHPUnit_Framework_TestCase {
         $this->assertInstanceOf('ValidatorStub', $validator, get_class($validator));
     }
 
-    // updateRulesUniques
+    public function testMakeValidatorSetsValidationAttributeNames()
+    {
+        $validatorMock = Mockery::mock('ValidatorStub');
 
-    // updateRulesetUniques
+        $validatorMock->shouldReceive('make')
+            ->once()
+            ->andReturn($validatorMock);
 
-    // injectUniqueIdentifiersToRules
+        $validatorMock->shouldReceive('setAttributeNames')->once()->with(['foo']);
 
-    // prepareUniqueRule
+        $this->trait->setValidator($validatorMock);
 
+        $this->trait->setValidationAttributeNames(['foo']);
 
+        $this->trait->makeValidator();
+    }
+
+    public function testThrowValidationException()
+    {
+        $this->setExpectedException('Watson\Validating\ValidationException');
+
+        Validator::shouldReceive('make')->once()->andReturn(
+            Mockery::mock('Illuminate\Contracts\Validation\Validator')
+        );
+
+        $this->trait->throwValidationException();
+    }
 }
 
-class DatabaseValidatingTraitStub implements \Watson\Validating\ValidatingInterface{
+class ValidatorStub extends \Illuminate\Validation\Factory
+{
+    //
+}
 
+class ModelStub extends Model
+{
+    public function saveOrFail(array $options = [])
+    {
+        return $options;
+    }
+}
+
+class DatabaseValidatingTraitStub extends ModelStub implements \Watson\Validating\ValidatingInterface
+{
     use \Watson\Validating\ValidatingTrait;
 
-    public $exists = false;
-
-    protected $addUniqueIdentifierToRules = true;
-
     protected $rules = [
-        'foo' => 'bar'
+        'foo' => 'bar',
+        'def' => 'array'
+    ];
+
+    protected $casts = [
+        'def' => 'array'
     ];
 
     protected $validationMessages = [
         'bar' => 'baz'
     ];
 
-    public function getTable()
+    protected $attributes = [
+        'abc'        => '123',
+        'def'        => '["456"]',
+        'bar'        => 'bar',
+        'created_at' => '2015-01-01 00:00:00'
+    ];
+
+    public function getBarAttribute($value)
     {
-        return 'foo';
+        return strrev($value);
     }
 
-    public function getKeyName()
+    protected function isDateCastable($key)
     {
-        return 'id';
+        return false;
     }
-
-    public function getKey()
-    {
-        return 1;
-    }
-
-    public function getAttributes()
-    {
-        return ['abc' => '123'];
-    }
-
-}
-
-class ValidatorStub extends \Illuminate\Validation\Factory {
-
 }

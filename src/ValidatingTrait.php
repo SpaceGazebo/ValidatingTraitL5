@@ -1,11 +1,15 @@
-<?php namespace Watson\Validating;
+<?php
 
-use \Illuminate\Support\MessageBag;
-use \Illuminate\Support\Facades\Input;
-use \Illuminate\Support\Facades\Validator;
-use \Illuminate\Validation\Factory;
+namespace Watson\Validating;
 
-trait ValidatingTrait {
+use Illuminate\Support\MessageBag;
+use Illuminate\Validation\Factory;
+use Illuminate\Support\Facades\Validator;
+use Watson\Validating\Injectors\UniqueInjector;
+
+trait ValidatingTrait
+{
+    use UniqueInjector;
 
     /**
      * Error messages as provided by the validator.
@@ -22,8 +26,7 @@ trait ValidatingTrait {
     protected $validationWarnings;
 
     /**
-     * Whether the model should undergo validation
-     * when saving or not.
+     * Whether the model should undergo validation when saving or not.
      *
      * @var bool
      */
@@ -32,9 +35,16 @@ trait ValidatingTrait {
     /**
      * The Validator factory class used for validation.
      *
-     * @return \Illuminate\Validation\Factory
+     * @var \Illuminate\Validation\Factory
      */
     protected $validator;
+
+    /**
+     * The custom validation attribute names.
+     *
+     * @var array;
+     */
+    protected $validationAttributeNames;
 
     /**
      * Boot the trait. Adds an observer class for validating.
@@ -124,6 +134,29 @@ trait ValidatingTrait {
     public function getModel()
     {
         return $this;
+    }
+
+    /**
+     * Get the casted model attributes.
+     *
+     * @return array
+     */
+    public function getModelAttributes()
+    {
+        $attributes = $this->getModel()->getAttributes();
+
+        foreach ($attributes as $key => $value) {
+            // The validator doesn't handle Carbon instances, so instead of casting
+            // them we'll return their raw value instead.
+            if (in_array($key, $this->getDates()) || $this->isDateCastable($key)) {
+                $attributes[$key] = $value;
+                continue;
+            }
+
+            $attributes[$key] = $this->getModel()->getAttributeValue($key);
+        }
+
+        return $attributes;
     }
 
     /**
@@ -313,8 +346,7 @@ trait ValidatingTrait {
      */
     public function isValidOrFail()
     {
-        if ( ! $this->isValid())
-        {
+        if ( ! $this->isValid()) {
             $this->throwValidationException();
         }
 
@@ -334,15 +366,16 @@ trait ValidatingTrait {
     /**
      * Force the model to be saved without undergoing validation.
      *
+     * @param  array  $options
      * @return bool
      */
-    public function forceSave()
+    public function forceSave(array $options = [])
     {
         $currentValidatingSetting = $this->getValidating();
 
         $this->setValidating(false);
 
-        $result = $this->getModel()->save();
+        $result = $this->getModel()->save($options);
 
         $this->setValidating($currentValidatingSetting);
 
@@ -353,15 +386,16 @@ trait ValidatingTrait {
      * Perform a one-off save that will raise an exception on validation error
      * instead of returning a boolean (which is the default behaviour).
      *
-     * @return void
-     * @throws \Watson\Validating\ValidatingException
+     * @param  array  $options
+     * @return bool
+     * @throws \Throwable
      */
     public function saveOrFail(array $options = [])
     {
-        if ($this->isInvalid())
-        {
-            $this->throwValidationException();
+        if ($this->isInvalid()) {
+            return $this->throwValidationException();
         }
+
         return $this->getModel()->parentSaveOrFail($options);
     }
 
@@ -381,15 +415,16 @@ trait ValidatingTrait {
      * Perform a one-off save that will return a boolean on
      * validation error instead of raising an exception.
      *
+     * @param  array  $options
      * @return bool
      */
-    public function saveOrReturn()
+    public function saveOrReturn(array $options = [])
     {
-        return $this->getModel()->save();
+        return $this->getModel()->save($options);
     }
 
     /**
-     * Get the Validator instance
+     * Get the Validator instance.
      *
      * @return \Illuminate\Validation\Factory
      */
@@ -399,7 +434,7 @@ trait ValidatingTrait {
     }
 
     /**
-     * Set the Validator instance
+     * Set the Validator instance.
      *
      * @param \Illuminate\Validation\Factory $validator
      */
@@ -416,11 +451,10 @@ trait ValidatingTrait {
      */
     protected function makeValidator($rules = [])
     {
-        // Get the model attributes.
-        $attributes = $this->getModel()->getAttributes();
+        // Get the casted model attributes.
+        $attributes = $this->getModelAttributes();
 
-        if ($this->getInjectUniqueIdentifier())
-        {
+        if ($this->getInjectUniqueIdentifier()) {
             $rules = $this->injectUniqueIdentifierToRules($rules);
         }
 
@@ -428,8 +462,7 @@ trait ValidatingTrait {
 
         $validator = $this->getValidator()->make($attributes, $rules, $messages);
 
-        if ($this->getValidationAttributeNames())
-        {
+        if ($this->getValidationAttributeNames()) {
             $validator->setAttributeNames($this->getValidationAttributeNames());
         }
 
@@ -513,12 +546,9 @@ trait ValidatingTrait {
      */
     public function throwValidationException()
     {
-        $exception = new ValidationException(get_class($this) . ' model could not be persisted as it failed validation.');
+        $validator = $this->makeValidator($this->getRules());
 
-        $exception->setModel($this);
-        $exception->setErrors($this->getErrors());
-
-        throw $exception;
+        throw new ValidationException($validator, $this);
     }
 
     /**
@@ -548,16 +578,19 @@ trait ValidatingTrait {
      */
     protected function injectUniqueIdentifierToRules(array $rules)
     {
-        foreach ($rules as $field => &$ruleset)
-        {
+        foreach ($rules as $field => &$ruleset) {
             // If the ruleset is a pipe-delimited string, convert it to an array.
             $ruleset = is_string($ruleset) ? explode('|', $ruleset) : $ruleset;
 
-            foreach ($ruleset as &$rule)
-            {
-                if (starts_with(trim($rule), 'unique:'))
-                {
-                    $rule = $this->prepareUniqueRule($rule, $field);
+            foreach ($ruleset as &$rule) {
+                $parameters = explode(':', $rule);
+                $validationRule = array_shift($parameters);
+
+                if ($method = $this->getUniqueIdentifierInjectorMethod($validationRule)) {
+                    $rule = call_user_func_array(
+                        [$this, $method],
+                        [explode(',', head($parameters)), $field]
+                    );
                 }
             }
         }
@@ -566,45 +599,16 @@ trait ValidatingTrait {
     }
 
     /**
-     * Take a unique rule, add the database table, column and
-     * model identifier if required.
+     * Get the dynamic method name for a unique identifier injector rule if it
+     * exists, otherwise return false.
      *
-     * @param  string $rule
-     * @param  string $field
-     * @return string
+     * @param  string $validationRule
+     * @return mixed
      */
-    protected function prepareUniqueRule($rule, $field)
+    protected function getUniqueIdentifierInjectorMethod($validationRule)
     {
-        $parameters = array_filter(explode(',', substr(trim($rule), 7)));
+        $method = 'prepare' . studly_case($validationRule) . 'Rule';
 
-        // If the table name isn't set, get it.
-        if ( ! isset($parameters[0]))
-        {
-            $parameters[0] = $this->getModel()->getTable();
-        }
-
-        // If the field name isn't set, infer it.
-        if ( ! isset($parameters[1]))
-        {
-            $parameters[1] = $field;
-        }
-
-        if($this->exists)
-        {
-            // If the identifier isn't set, add it.
-            if ( ! isset($parameters[2]) || strtolower($parameters[2]) === 'null')
-            {
-                $parameters[2] = $this->getModel()->getKey();
-            }
-
-            // Add the primary key if it isn't set in case it isn't id.
-            if ( ! isset($parameters[3]))
-            {
-                $parameters[3] = $this->getModel()->getKeyName();
-            }
-        }
-
-        return 'unique:' . implode(',', $parameters);
+        return method_exists($this, $method) ? $method : false;
     }
-
 }
